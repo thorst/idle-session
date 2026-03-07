@@ -2,7 +2,14 @@
   "name": "idle-session",
   "version": "1.0.0",
   "description": "Seamless, multi-tab session orchestration for the modern web.",
-  "keywords": ["idle", "session", "timeout", "heartbeat", "broadcast-channel", "multi-tab"],
+  "keywords": [
+    "idle",
+    "session",
+    "timeout",
+    "heartbeat",
+    "broadcast-channel",
+    "multi-tab"
+  ],
   "author": "Todd Horst",
   "license": "MIT",
   "homepage": "https://github.com/thorst/idle-session",
@@ -18,13 +25,14 @@
     "dev": "vite",
     "build": "vite build",
     "test": "playwright test",
-    "coverage": "VITE_COVERAGE=true playwright test && nyc report"
+    "coverage": "cross-env VITE_COVERAGE=true playwright test && nyc report"
   },
   "devDependencies": {
-    "vite": "^6.0.0",
     "@playwright/test": "^1.50.0",
-    "vite-plugin-istanbul": "^6.0.0",
-    "nyc": "^17.0.0"
+    "cross-env": "^10.1.0",
+    "nyc": "^17.0.0",
+    "vite": "^6.0.0",
+    "vite-plugin-istanbul": "^6.0.0"
   },
   "types": "./IdleSession.d.ts",
   "exports": {

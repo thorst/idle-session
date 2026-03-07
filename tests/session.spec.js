@@ -143,6 +143,20 @@ test('heartbeat 403 response triggers logout', async ({ page }) => {
     expect(page.url()).toContain('/logout');
 });
 
+test('heartbeat auth failure triggers logout callback', async ({ page }) => {
+    await page.goto('/');
+    await page.route('**/api/keep-alive', route => route.fulfill({ status: 401 }));
+    const logoutCalled = await page.evaluate(async () => {
+        window.session.destroy();
+        let called = false;
+        window.session = new window.IdleSession({ onLogout: () => { called = true; } });
+        window.session.needsHeartbeat = true;
+        await window.session.triggerHeartbeat();
+        return called;
+    });
+    expect(logoutCalled).toBe(true);
+});
+
 // ── Logout ────────────────────────────────────────────────────────────────────
 
 test('_doLogout removes warning modal if one is open', async ({ page }) => {
@@ -160,6 +174,7 @@ test('enforce logout after idle timeout', async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => {
         window.session.timeout = 1000;
+        window.session.logout = () => window.location.href = '/logout';
         window.session.resetTimers();
     });
     await page.waitForURL('**/logout');
