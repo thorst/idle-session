@@ -162,7 +162,7 @@ test('enforce logout after idle timeout', async ({ page }) => {
         window.session.timeout = 1000;
         window.session.resetTimers();
     });
-    await page.waitForTimeout(1500);
+    await page.waitForURL('**/logout');
     expect(page.url()).toContain('/logout');
 });
 
