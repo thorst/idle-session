@@ -8,6 +8,10 @@
 
 `IdleSession` is a high-performance, dependency-free ES Module for managing session lifecycles in modern web applications. It eliminates the "timer wars" common in multi-tab environments and is a native-first successor to [jquery-idletimer](https://github.com/thorst/jquery-idletimer).
 
+## Live Demo
+
+Try it in your browser: **[thorst.github.io/idle-session](https://thorst.github.io/idle-session/)**
+
 ---
 
 ## Key Features

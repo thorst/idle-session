@@ -47,21 +47,32 @@ cdnjs requires a **manual submission** via a pull request to their repository. D
 
 ## Publishing Workflow
 
+### First Publish
+
 ```bash
-# 1. Run tests and coverage
-npm run coverage
-
-# 2. Build the minified dist
-npm run build
-
-# 3. Preview what will be published (sanity check)
-npm pack --dry-run
-
-# 4. Publish
-npm publish
+npm login               # one-time: authenticate with npm
+npm run coverage        # run tests and coverage
+npm run build           # build the minified dist
+npm pack --dry-run      # sanity check: preview what will be published
+npm publish             # publish to npm
+git push && git push --tags
 ```
 
 > The first publish requires `npm login` and the package name `idle-session` to be available on the npm registry.
+
+### Subsequent Releases
+
+```bash
+npm run coverage        # run tests and coverage
+npm run build           # build the minified dist
+npm version patch       # 1.0.0 → 1.0.1  bug fixes
+# npm version minor     # 1.0.0 → 1.1.0  new backwards-compatible features
+# npm version major     # 1.0.0 → 2.0.0  breaking changes
+npm publish
+git push && git push --tags
+```
+
+`npm version` automatically bumps `package.json`, commits the change, and creates a git tag.
 
 ---
 
