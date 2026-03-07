@@ -1,0 +1,6 @@
+{
+    "all": true,
+    "include": ["IdleSession.js"],
+    "reporter": ["html", "text", "lcov"],
+    "report-dir": "coverage"
+}
