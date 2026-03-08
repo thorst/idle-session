@@ -79,3 +79,5 @@ export declare class IdleSession {
     private init(): void;
     private _doLogout(): void;
 }
+
+export default IdleSession;

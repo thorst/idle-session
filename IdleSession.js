@@ -203,3 +203,5 @@ export class IdleSession {
         document.getElementById('logout-now').onclick = () => this._doLogout();
     }
 }
+
+export default IdleSession;
