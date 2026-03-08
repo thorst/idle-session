@@ -85,7 +85,7 @@ npm version patch       # 1.0.0 → 1.0.1  bug fixes
 # npm version major     # 1.0.0 → 2.0.0  breaking changes
 npm publish
 git push && git push --tags
-gh release create v1.0.1 --generate-notes  # update version number to match
+gh release create v[#####] --generate-notes  # update version number to match
 ```
 
 `npm version` automatically bumps `package.json`, commits the change, and creates a git tag. `gh` is the GitHub CLI — install from cli.github.com and run `gh auth login` once to authenticate. `--generate-notes` auto-generates release notes from commits since the last tag.
