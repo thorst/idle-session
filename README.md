@@ -137,6 +137,91 @@ const session = new IdleSession({
 
 The default built-in dialog is used only when `onWarning` is not provided.
 
+#### Bootstrap Modal
+
+If your app already uses Bootstrap, pass `onWarning` and wire it to a Bootstrap modal:
+
+```html
+<!-- In your HTML -->
+<div class="modal fade" id="sessionModal" tabindex="-1" aria-labelledby="sessionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="sessionModalLabel">Session Expiring</h5>
+      </div>
+      <div class="modal-body">
+        Your session is about to expire due to inactivity.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="sessionLogout">Log Out</button>
+        <button type="button" class="btn btn-primary" id="sessionExtend">Stay Logged In</button>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+```javascript
+const modalEl = document.getElementById('sessionModal');
+const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+
+document.getElementById('sessionExtend').addEventListener('click', () => bsModal.hide());
+document.getElementById('sessionLogout').addEventListener('click', () => bsModal.hide());
+
+const session = new IdleSession({
+    onWarning: ({ extend, logout }) => {
+        document.getElementById('sessionExtend').onclick = () => { extend(); bsModal.hide(); };
+        document.getElementById('sessionLogout').onclick = () => { logout(); bsModal.hide(); };
+        bsModal.show();
+    }
+});
+```
+
+#### Tailwind + Headless UI / Alpine.js Modal
+
+If you use Tailwind CSS, you can build a modal inline and toggle it via a flag. This example uses Alpine.js, a common lightweight companion to Tailwind:
+
+```html
+<!-- In your HTML -->
+<div x-data="sessionWarning()" x-show="open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+  <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+    <h2 class="text-lg font-semibold text-gray-900">Session Expiring</h2>
+    <p class="mt-2 text-sm text-gray-500">Your session is about to expire due to inactivity.</p>
+    <div class="mt-6 flex justify-end gap-3">
+      <button @click="doLogout()" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Log Out</button>
+      <button @click="doExtend()" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Stay Logged In</button>
+    </div>
+  </div>
+</div>
+```
+
+```javascript
+// Alpine.js component — exposes open/extend/logout to the template above
+function sessionWarning() {
+    return {
+        open: false,
+        _extend: null,
+        _logout: null,
+        doExtend() { this.open = false; this._extend?.(); },
+        doLogout() { this.open = false; this._logout?.(); },
+        show({ extend, logout }) {
+            this._extend = extend;
+            this._logout = logout;
+            this.open = true;
+        }
+    };
+}
+
+// Grab the Alpine component instance after Alpine has initialized
+document.addEventListener('alpine:initialized', () => {
+    const warningComponent = Alpine.$data(document.querySelector('[x-data="sessionWarning()"]'));
+
+    const session = new IdleSession({
+        onWarning: ({ extend, logout }) => warningComponent.show({ extend, logout })
+    });
+});
+```
+
 #### Styling the Built-in Dialog
 
 If you omit `onWarning`, the default `<dialog>` can be themed without touching the library — just set CSS custom properties anywhere in your stylesheet:
