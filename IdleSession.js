@@ -111,6 +111,7 @@ export class IdleSession {
     width: 90vw;
     box-shadow: 0 20px 60px rgba(0,0,0,0.25);
     font-family: system-ui, -apple-system, sans-serif;
+    margin: auto;
 }
 #idle-warning-modal::backdrop {
     background: rgba(0,0,0,0.45);
