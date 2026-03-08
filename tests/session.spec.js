@@ -181,6 +181,30 @@ test('enforce logout after idle timeout', async ({ page }) => {
     expect(page.url()).toContain('/logout');
 });
 
+test('default onLogout navigates to /logout', async ({ page }) => {
+    await page.goto('/');
+    // Use a microtask to capture coverage after line 20 executes but before the
+    // navigation macrotask runs, then save it to localStorage on the /logout page.
+    const coverage = await page.evaluate(() => new Promise(resolve => {
+        window.session.destroy();
+        window.session = new window.IdleSession({ timeout: 999999, heartbeatInterval: 999999 });
+        const origLogout = window.session.logout;
+        window.session.logout = function () {
+            origLogout.call(this);                               // line 20 executes; navigation queued
+            Promise.resolve().then(() => resolve(window.__coverage__)); // microtask: before navigation
+        };
+        window.session._doLogout();
+    })).catch(() => null);
+    // Diagnostic: did the microtask resolve with coverage before navigation?
+    expect(coverage, 'coverage captured before navigation').not.toBeNull();
+    await page.waitForURL('**/logout').catch(() => {});
+    expect(page.url()).toContain('/logout');
+    // Persist coverage to localStorage so the fixture teardown can find it.
+    await page.evaluate(cov => {
+        try { localStorage.setItem('__coverage_snapshot__', JSON.stringify(cov)); } catch (_) {}
+    }, coverage).catch(() => {});
+});
+
 // ── Destroy ───────────────────────────────────────────────────────────────────
 
 test('destroy removes warning modal and cleans up', async ({ page }) => {
@@ -189,6 +213,104 @@ test('destroy removes warning modal and cleans up', async ({ page }) => {
     await page.evaluate(() => window.session.destroy());
     const exists = await page.evaluate(() => !!document.getElementById('idle-warning-modal'));
     expect(exists).toBe(false);
+});
+
+// ── onWarning Callback ────────────────────────────────────────────────────────
+
+test('onWarning fires with extend and logout when warning timer elapses', async ({ page }) => {
+    await page.goto('/');
+    const result = await page.evaluate(async () => {
+        let received = null;
+        window.session.destroy();
+        // timeout=2000, warningBefore=1500 → warning fires after 500ms
+        window.session = new window.IdleSession({
+            timeout: 2000,
+            warningBefore: 1500,
+            onWarning: (args) => {
+                received = { hasExtend: typeof args.extend === 'function', hasLogout: typeof args.logout === 'function' };
+            },
+        });
+        await new Promise(r => setTimeout(r, 600));
+        return received;
+    });
+    expect(result).toEqual({ hasExtend: true, hasLogout: true });
+});
+
+test('onWarning extend() resets timers', async ({ page }) => {
+    await page.goto('/');
+    const timerChanged = await page.evaluate(async () => {
+        let extendFn = null;
+        window.session.destroy();
+        window.session = new window.IdleSession({
+            timeout: 2000,
+            warningBefore: 1500,
+            onWarning: ({ extend }) => { extendFn = extend; },
+        });
+        await new Promise(r => setTimeout(r, 600));
+        if (!extendFn) return false;
+        const timerBefore = window.session.timer;
+        extendFn();
+        return window.session.timer !== timerBefore;
+    });
+    expect(timerChanged).toBe(true);
+});
+
+test('onWarning logout() triggers onLogout callback', async ({ page }) => {
+    await page.goto('/');
+    const logoutCalled = await page.evaluate(async () => {
+        let called = false;
+        let logoutFn = null;
+        window.session.destroy();
+        window.session = new window.IdleSession({
+            timeout: 2000,
+            warningBefore: 1500,
+            onWarning: ({ logout }) => { logoutFn = logout; },
+            onLogout: () => { called = true; },
+        });
+        await new Promise(r => setTimeout(r, 600));
+        if (!logoutFn) return false;
+        logoutFn();
+        return called;
+    });
+    expect(logoutCalled).toBe(true);
+});
+
+test('warning timer fires renderWarningModal when onWarning is not set', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        window.session.destroy();
+        // timeout=2000, warningBefore=1500 → warning callback fires after 500ms
+        window.session = new window.IdleSession({ timeout: 2000, warningBefore: 1500 });
+        await new Promise(r => setTimeout(r, 600));
+    });
+    const modalExists = await page.evaluate(() => !!document.getElementById('idle-warning-modal'));
+    expect(modalExists).toBe(true);
+});
+
+test('renderWarningModal still works when onWarning is not set', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => window.session.renderWarningModal());
+    const modalExists = await page.evaluate(() => !!document.getElementById('idle-warning-modal'));
+    expect(modalExists).toBe(true);
+});
+
+test('renderWarningModal injects scoped styles on first call', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => window.session.renderWarningModal());
+    const stylesInjected = await page.evaluate(() => !!document.getElementById('idle-warning-styles'));
+    expect(stylesInjected).toBe(true);
+});
+
+test('renderWarningModal does not inject duplicate styles', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => {
+        window.session.renderWarningModal();
+        window.session.destroy();
+        window.session = new window.IdleSession();
+        window.session.renderWarningModal();
+    });
+    const styleCount = await page.evaluate(() => document.querySelectorAll('#idle-warning-styles').length);
+    expect(styleCount).toBe(1);
 });
 
 // ── Constructor Options ───────────────────────────────────────────────────────
@@ -215,6 +337,16 @@ test('warningBefore controls when warning timer fires', async ({ page }) => {
 });
 
 // ── Cross-Tab Sync ────────────────────────────────────────────────────────────
+
+test('onmessage USER_ACTIVE resets timers', async ({ page }) => {
+    await page.goto('/');
+    const timerChanged = await page.evaluate(() => {
+        const before = window.session.timer;
+        window.session.channel.onmessage({ data: 'USER_ACTIVE' });
+        return window.session.timer !== before;
+    });
+    expect(timerChanged).toBe(true);
+});
 
 test('activity in Tab A resets timers in Tab B', async ({ context }) => {
     const [pageA, pageB] = await Promise.all([context.newPage(), context.newPage()]);

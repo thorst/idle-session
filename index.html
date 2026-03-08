@@ -16,6 +16,15 @@
             --warn:     #f59e0b;
             --danger:   #ef4444;
             --code-bg:  #12141a;
+
+            /* IdleSession built-in modal — match our dark theme */
+            --idle-bg:          #1c1f26;
+            --idle-color:       #e8eaf0;
+            --idle-heading:     #f59e0b;
+            --idle-muted:       #9ca3af;
+            --idle-border:      #2e3340;
+            --idle-accent:      #6366f1;
+            --idle-accent-text: #ffffff;
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,6 +34,7 @@
             color: var(--text);
             font-family: system-ui, -apple-system, sans-serif;
             min-height: 100vh;
+            padding-bottom: var(--console-h, 200px);
         }
 
         /* ── Header ──────────────────────────────────────────────── */
@@ -38,6 +48,17 @@
         }
         header h1 { font-size: 1.125rem; font-weight: 600; }
         header h1 span { color: var(--muted); font-weight: 400; }
+
+        .gh-link {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-decoration: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.2rem 0.6rem;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .gh-link:hover { color: var(--text); border-color: var(--muted); }
 
         #status-badge {
             padding: 0.2rem 0.7rem;
@@ -66,12 +87,12 @@
         .cd-item { display: flex; flex-direction: column; align-items: flex-end; }
         .cd-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .cd-value { font-size: 1rem; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
-        .cd-value.warn  { color: var(--warn); }
+        .cd-value.warn   { color: var(--warn); }
         .cd-value.danger { color: var(--danger); }
 
         /* ── Layout ──────────────────────────────────────────────── */
         main {
-            max-width: 960px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
             display: flex;
@@ -79,7 +100,15 @@
             gap: 1.5rem;
         }
 
-        /* ── Sections ────────────────────────────────────────────── */
+        .top-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+        @media (max-width: 800px) { .top-row { grid-template-columns: 1fr; } }
+
+        /* ── Cards ───────────────────────────────────────────────── */
         .card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -170,14 +199,54 @@
             white-space: pre;
         }
 
-        /* ── Log ─────────────────────────────────────────────────── */
-        #log-output {
-            height: 220px;
-            overflow-y: auto;
-            padding: 0.75rem 1.25rem;
+        /* ── Dev Console (fixed bottom) ──────────────────────────── */
+        #console-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            min-height: 72px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            z-index: 10;
             display: flex;
             flex-direction: column;
-            gap: 0.2rem;
+        }
+
+        #console-resize {
+            height: 5px;
+            cursor: ns-resize;
+            background: transparent;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+        #console-resize:hover,
+        #console-resize.dragging { background: var(--accent); }
+
+        .console-header {
+            padding: 0.35rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .console-header h2 {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+        }
+
+        #log-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
         }
         #log-output:empty::after {
             content: 'No activity yet. Initialize a session to begin.';
@@ -191,10 +260,26 @@
             font-size: 0.8125rem;
         }
         .log-ts  { font-family: monospace; font-size: 0.7rem; color: var(--muted); flex-shrink: 0; }
-        .log-info    .log-msg { color: var(--text);       }
-        .log-success .log-msg { color: var(--success);    }
-        .log-warn    .log-msg { color: var(--warn);       }
-        .log-error   .log-msg { color: var(--danger);     }
+        .log-info    .log-msg { color: var(--text);    }
+        .log-success .log-msg { color: var(--success); }
+        .log-warn    .log-msg { color: var(--warn);    }
+        .log-error   .log-msg { color: var(--danger);  }
+
+        /* ── Warning Dialog (custom, dark-themed) ────────────────── */
+        #warn-dialog {
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid var(--warn);
+            background: var(--surface);
+            color: var(--text);
+            max-width: 380px;
+            width: 90vw;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        }
+        #warn-dialog::backdrop { background: rgba(0,0,0,0.6); }
+        #warn-dialog h2 { color: var(--warn); margin-bottom: 0.5rem; font-size: 1.1rem; }
+        #warn-dialog p  { color: var(--muted); font-size: 0.875rem; line-height: 1.55; margin-bottom: 1.5rem; }
+        .warn-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
 
         /* ── Session Expired Overlay ──────────────────────────────── */
         #expired-overlay {
@@ -227,6 +312,7 @@
 
 <header>
     <h1>IdleSession <span>Kitchen Sink</span></h1>
+    <a href="https://github.com/thorst/idle-session" target="_blank" rel="noopener" class="gh-link">GitHub</a>
     <div id="status-badge">Not Initialized</div>
     <div id="countdown">
         <div class="cd-item">
@@ -245,68 +331,71 @@
 </header>
 
 <main>
+    <div class="top-row">
 
-    <!-- Configuration -->
-    <div class="card">
-        <div class="card-header"><h2>Configuration</h2></div>
-        <div class="config-grid">
-            <div class="field">
-                <label for="cfg-timeout">Timeout (ms)</label>
-                <input id="cfg-timeout" type="number" value="30000" min="5000" step="1000">
-                <small>Time idle before logout fires — e.g. 900000 = 15 min</small>
+        <!-- Configuration -->
+        <div class="card">
+            <div class="card-header"><h2>Configuration</h2></div>
+            <div class="config-grid">
+                <div class="field">
+                    <label for="cfg-timeout">Timeout (ms)</label>
+                    <input id="cfg-timeout" type="number" value="30000" min="5000" step="1000">
+                    <small>Time idle before logout fires — e.g. 900000 = 15 min</small>
+                </div>
+                <div class="field">
+                    <label for="cfg-hb-interval">Heartbeat Interval (ms)</label>
+                    <input id="cfg-hb-interval" type="number" value="10000" min="1000" step="1000">
+                    <small>How often to ping the server when the user is active</small>
+                </div>
+                <div class="field">
+                    <label for="cfg-hb-url">Heartbeat Endpoint</label>
+                    <input id="cfg-hb-url" type="text" value="/api/keep-alive">
+                    <small>POST endpoint called on each heartbeat</small>
+                </div>
+                <div class="field">
+                    <label for="cfg-logout-url">Logout URL</label>
+                    <input id="cfg-logout-url" type="text" value="/login?reason=session_expired">
+                    <small>Redirect target when the session expires</small>
+                </div>
+                <div class="field" style="grid-column: 1 / -1;">
+                    <label for="cfg-hb-sim">Simulated Heartbeat Response</label>
+                    <select id="cfg-hb-sim">
+                        <option value="200">200 OK — Heartbeat succeeds, session continues</option>
+                        <option value="401">401 Unauthorized — Hard logout triggered across all tabs</option>
+                        <option value="403">403 Forbidden — Hard logout triggered across all tabs</option>
+                        <option value="net">Network Error (handled) — Session stays active, retries next interval</option>
+                    </select>
+                    <small>Controls demo behavior — no real server required. "Network Error (handled)" demonstrates the correct resilience pattern: catch transient errors inside <code>onHeartbeat</code> and only throw on auth failures.</small>
+                </div>
             </div>
-            <div class="field">
-                <label for="cfg-hb-interval">Heartbeat Interval (ms)</label>
-                <input id="cfg-hb-interval" type="number" value="10000" min="1000" step="1000">
-                <small>How often to ping the server when the user is active</small>
-            </div>
-            <div class="field">
-                <label for="cfg-hb-url">Heartbeat Endpoint</label>
-                <input id="cfg-hb-url" type="text" value="/api/keep-alive">
-                <small>POST endpoint called on each heartbeat</small>
-            </div>
-            <div class="field">
-                <label for="cfg-logout-url">Logout URL</label>
-                <input id="cfg-logout-url" type="text" value="/login?reason=session_expired">
-                <small>Redirect target when the session expires</small>
-            </div>
-            <div class="field" style="grid-column: 1 / -1;">
-                <label for="cfg-hb-sim">Simulated Heartbeat Response</label>
-                <select id="cfg-hb-sim">
-                    <option value="200">200 OK — Heartbeat succeeds, session continues</option>
-                    <option value="401">401 Unauthorized — Hard logout triggered across all tabs</option>
-                    <option value="403">403 Forbidden — Hard logout triggered across all tabs</option>
-                    <option value="net">Network Error (handled) — Session stays active, retries next interval</option>
-                </select>
-                <small>Controls demo behavior — no real server required. "Network Error (handled)" demonstrates the correct resilience pattern: catch transient errors inside <code>onHeartbeat</code> and only throw on auth failures.</small>
+            <div class="actions">
+                <button id="btn-start" class="btn-primary">Initialize Session</button>
+                <button id="btn-warning" class="btn-warn">Preview Warning Dialog</button>
+                <button id="btn-activity">Simulate Activity</button>
             </div>
         </div>
-        <div class="actions">
-            <button id="btn-start" class="btn-primary">Initialize Session</button>
-            <button id="btn-warning" class="btn-warn">Preview Warning Modal</button>
-            <button id="btn-activity">Simulate Activity</button>
+
+        <!-- Generated Code -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Generated Code</h2>
+                <button id="btn-copy" class="btn-muted">Copy</button>
+            </div>
+            <pre><code id="code-output"></code></pre>
         </div>
+
     </div>
-
-    <!-- Generated Code -->
-    <div class="card">
-        <div class="card-header">
-            <h2>Generated Code</h2>
-            <button id="btn-copy" class="btn-muted">Copy</button>
-        </div>
-        <pre><code id="code-output"></code></pre>
-    </div>
-
-    <!-- Activity Log -->
-    <div class="card">
-        <div class="card-header">
-            <h2>Activity Log</h2>
-            <button id="btn-clear" class="btn-muted">Clear</button>
-        </div>
-        <div id="log-output"></div>
-    </div>
-
 </main>
+
+<!-- Custom warning dialog (dark-themed, uses onWarning callback) -->
+<dialog id="warn-dialog">
+    <h2>Session Expiring</h2>
+    <p>Your session will end soon due to inactivity. Click below to stay logged in.</p>
+    <div class="warn-actions">
+        <button id="btn-warn-logout" class="btn-warn">Log Out Now</button>
+        <button id="btn-warn-extend" class="btn-primary">Stay Logged In</button>
+    </div>
+</dialog>
 
 <!-- Session Expired Overlay -->
 <div id="expired-overlay">
@@ -318,6 +407,16 @@
             <button id="btn-restart" class="btn-primary">Restart Demo Session</button>
         </div>
     </div>
+</div>
+
+<!-- Dev Console (fixed bottom) -->
+<div id="console-panel">
+    <div id="console-resize"></div>
+    <div class="console-header">
+        <h2>Activity Log</h2>
+        <button id="btn-clear" class="btn-muted">Clear</button>
+    </div>
+    <div id="log-output"></div>
 </div>
 
 <script type="module">
@@ -340,6 +439,34 @@
     const codeOutput     = document.getElementById('code-output');
     const expiredOverlay = document.getElementById('expired-overlay');
     const logoutUrlEl    = document.getElementById('logout-url-display');
+
+    // ─── Dev Console resize ───────────────────────────────────────────────────
+    const consolePanel  = document.getElementById('console-panel');
+    const resizeHandle  = document.getElementById('console-resize');
+
+    function setConsoleHeight(h) {
+        const clamped = Math.max(72, Math.min(window.innerHeight * 0.6, h));
+        consolePanel.style.height = clamped + 'px';
+        document.documentElement.style.setProperty('--console-h', clamped + 'px');
+    }
+
+    resizeHandle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        resizeHandle.classList.add('dragging');
+        const startY = e.clientY;
+        const startH = consolePanel.offsetHeight;
+        const onMove = (e) => setConsoleHeight(startH - (e.clientY - startY));
+        const onUp   = () => {
+            resizeHandle.classList.remove('dragging');
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    });
+
+    // Initialise CSS variable so body padding-bottom matches default panel height.
+    setConsoleHeight(200);
 
     // ─── Logging ──────────────────────────────────────────────────────────────
     function addLog(msg, type = 'info') {
@@ -372,9 +499,9 @@
 
     setInterval(() => {
         if (!window.session) return;
-        const elapsed   = Date.now() - lastActivity;
-        const toLogout  = sessionTimeout - elapsed;
-        const toWarn    = (sessionTimeout - WARN_BEFORE) - elapsed;
+        const elapsed  = Date.now() - lastActivity;
+        const toLogout = sessionTimeout - elapsed;
+        const toWarn   = (sessionTimeout - WARN_BEFORE) - elapsed;
 
         cdLogout.textContent = fmt(Math.max(0, toLogout));
         cdLogout.className   = 'cd-value' + (toLogout < 10000 ? ' danger' : toLogout < 30000 ? ' warn' : '');
@@ -420,6 +547,11 @@ const session = new IdleSession({
             if (err.message.startsWith('Server returned')) throw err;
         }
     },
+    onWarning: ({ extend, logout }) => {
+        // Show your own warning UI here.
+        // Call extend() if the user wants to stay logged in.
+        // Call logout() if the user chooses to leave.
+    },
     onLogout: () => window.location.href = '${logoutUrl}'
 });`;
     }
@@ -443,6 +575,24 @@ const session = new IdleSession({
         });
     });
 
+    // ─── Warning dialog ───────────────────────────────────────────────────────
+    const warnDialog = document.getElementById('warn-dialog');
+
+    function showWarningDialog(extend, logout) {
+        if (warnDialog.open) return;
+        document.getElementById('btn-warn-extend').onclick = () => {
+            warnDialog.close();
+            extend();
+            addLog('Session extended via warning dialog', 'success');
+        };
+        document.getElementById('btn-warn-logout').onclick = () => {
+            warnDialog.close();
+            logout();
+        };
+        warnDialog.showModal();
+        addLog('Warning: session expiring soon', 'warn');
+    }
+
     // ─── Session initialization ───────────────────────────────────────────────
     function initSession() {
         sessionTimeout   = parseInt(document.getElementById('cfg-timeout').value);
@@ -452,6 +602,9 @@ const session = new IdleSession({
 
         lastActivity  = Date.now();
         lastHeartbeat = null;
+
+        // Close any open warning dialog from the previous session.
+        if (warnDialog.open) warnDialog.close();
 
         // Clean up the previous session before replacing it.
         window.session?.destroy();
@@ -464,8 +617,6 @@ const session = new IdleSession({
                 const sim = document.getElementById('cfg-hb-sim').value;
 
                 if (sim === 'net') {
-                    // Correct resilience pattern: catch network errors, don't throw.
-                    // Only auth failures (401/403) should propagate to trigger logout.
                     addLog(`Heartbeat → ${hbUrl} — Network error (handled, session stays active)`, 'warn');
                     lastHeartbeat = Date.now();
                     return;
@@ -482,7 +633,12 @@ const session = new IdleSession({
                 }
             },
 
+            onWarning: ({ extend, logout }) => {
+                showWarningDialog(extend, logout);
+            },
+
             onLogout: () => {
+                if (warnDialog.open) warnDialog.close();
                 setStatus('expired');
                 countdownEl.classList.remove('visible');
                 logoutUrlEl.textContent = logoutUrl;
@@ -502,8 +658,8 @@ const session = new IdleSession({
         setStatus('active');
 
         const warnNote = sessionTimeout <= WARN_BEFORE
-            ? ` (warning modal disabled — timeout must be > ${WARN_BEFORE / 1000}s)`
-            : ` (warning modal fires at ${fmt(sessionTimeout - WARN_BEFORE)} remaining)`;
+            ? ` (warning dialog disabled — timeout must be > ${WARN_BEFORE / 1000}s)`
+            : ` (warning dialog fires at ${fmt(sessionTimeout - WARN_BEFORE)} remaining)`;
 
         addLog(`Session initialized — timeout: ${sessionTimeout}ms, heartbeat: ${hbInterval}ms${warnNote}`, 'info');
     }
@@ -515,9 +671,14 @@ const session = new IdleSession({
     });
 
     document.getElementById('btn-warning').addEventListener('click', () => {
-        if (!window.session) { addLog('Initialize a session first.', 'warn'); return; }
-        window.session.renderWarningModal();
-        addLog('Warning modal triggered manually', 'warn');
+        const extend = window.session
+            ? () => { window.session.handleActivity(); }
+            : () => {};
+        const logout = window.session
+            ? () => { window.session._doLogout(); }
+            : () => { addLog('No active session.', 'warn'); };
+        showWarningDialog(extend, logout);
+        addLog('Warning dialog triggered manually', 'warn');
     });
 
     document.getElementById('btn-activity').addEventListener('click', () => {

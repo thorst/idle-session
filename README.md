@@ -71,10 +71,11 @@ All options are optional. Pass any combination to the constructor to override th
 | :--- | :--- | :--- | :--- |
 | `timeout` | `number` | `900000` (15m) | Idle time in ms before `onLogout` is triggered. |
 | `heartbeatInterval` | `number` | `300000` (5m) | How often (ms) to ping the server when activity is detected. |
-| `warningBefore` | `number` | `60000` (1m) | How many ms before `timeout` to show the warning modal. Set to `0` to disable. |
+| `warningBefore` | `number` | `60000` (1m) | How many ms before `timeout` to show the warning. Set to `0` to disable. |
 | `channelName` | `string` | `'session_sync'` | `BroadcastChannel` name for cross-tab sync. Override if you run multiple independent apps on the same origin. |
 | `onHeartbeat` | `async function` | POSTs to `/api/keep-alive` | Custom async function to ping your backend. Throwing triggers logout. |
 | `onLogout` | `function` | Redirects to `/logout` | Callback executed when the session expires or is forcibly revoked. |
+| `onWarning` | `function` | Built-in `<dialog>` | Called instead of the built-in warning modal when the session is about to expire. Receives `{ extend, logout }` — call `extend()` to reset the session, `logout()` to force-end it. If omitted, the default styled `<dialog>` is used. |
 
 ---
 
@@ -117,6 +118,53 @@ const session = new IdleSession({
     }
 });
 ```
+
+### Custom Warning UI
+
+Provide `onWarning` to replace the built-in dialog with your own UI. The callback receives `{ extend, logout }`:
+
+```javascript
+const session = new IdleSession({
+    onWarning: ({ extend, logout }) => {
+        // Show your own modal, toast, banner — anything.
+        myModal.open({
+            onStayLoggedIn: extend,   // resets the idle timer
+            onLogOut:       logout,   // ends the session immediately
+        });
+    }
+});
+```
+
+The default built-in dialog is used only when `onWarning` is not provided.
+
+#### Styling the Built-in Dialog
+
+If you omit `onWarning`, the default `<dialog>` can be themed without touching the library — just set CSS custom properties anywhere in your stylesheet:
+
+```css
+/* Example: match a dark application theme */
+:root {
+    --idle-bg:          #1c1f26;
+    --idle-color:       #e8eaf0;
+    --idle-heading:     #f59e0b;
+    --idle-muted:       #9ca3af;
+    --idle-border:      #2e3340;
+    --idle-accent:      #6366f1;
+    --idle-accent-text: #ffffff;
+}
+```
+
+| Property | Controls | Default |
+| :--- | :--- | :--- |
+| `--idle-bg` | Dialog background | `#ffffff` |
+| `--idle-color` | Body text | `#111827` |
+| `--idle-heading` | Heading color | inherits `--idle-color` |
+| `--idle-muted` | Subtext and secondary button | `#6b7280` |
+| `--idle-border` | Dialog border and button borders | `#e5e7eb` |
+| `--idle-accent` | Primary button background | `#2563eb` |
+| `--idle-accent-text` | Primary button text | `#ffffff` |
+
+---
 
 ### Cleanup / SPA Route Changes
 
@@ -165,6 +213,21 @@ A `401` or `403` response is treated as a hard termination signal, triggering an
 ## Testing
 
 This library uses a two-tier testing strategy.
+
+### Prerequisites
+
+After cloning the repository, run the following before any test or coverage commands:
+
+```bash
+npm install              # install dev dependencies
+npx playwright install   # download Playwright browser binaries (required once per machine)
+```
+
+To verify the dev server runs correctly before testing:
+
+```bash
+npm run dev   # starts Vite at http://localhost:5173 — open in a browser to confirm
+```
 
 ### Unit & Integration Tests
 

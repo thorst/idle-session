@@ -2,6 +2,19 @@
 
 ---
 
+## When to Bump the Version
+
+Only bump the version (and publish to npm) when the **distributed files change** — i.e., `IdleSession.js`, `IdleSession.d.ts`, or anything under `dist/`. The `files` field in `package.json` controls exactly what ships to consumers.
+
+Changes to tests, the demo (`index.html`), docs (`README.md`, `NOTES.md`, `CHANGELOG.md`), or CI config do **not** require a version bump or npm publish. Push to GitHub freely for those.
+
+**Version bump guidance:**
+- `npm version patch` — bug fixes in the library (e.g. fixing a timer edge case)
+- `npm version minor` — new backwards-compatible features (e.g. adding `onWarning`)
+- `npm version major` — breaking changes to the public API
+
+---
+
 ## CDN Publishing
 
 Both jsDelivr and unpkg **automatically serve any package once it is published to npm** — no separate submission needed.

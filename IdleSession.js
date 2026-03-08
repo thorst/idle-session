@@ -17,13 +17,15 @@ export class IdleSession {
                 if (err.message === 'Unauthorized') throw err;
             }
         },
-        onLogout = () => window.location.href = '/logout'
+        onLogout = () => window.location.href = '/logout',
+        onWarning = undefined,
     } = {}) {
         this.timeout = timeout;
         this.heartbeatInterval = heartbeatInterval;
         this.warningBefore = warningBefore;
         this.onHeartbeat = onHeartbeat;
         this.logout = onLogout;
+        this.onWarning = onWarning;
 
         this.channel = new BroadcastChannel(channelName);
         this.timer = null;
@@ -61,7 +63,9 @@ export class IdleSession {
         const warnAt = this.timeout - this.warningBefore;
         if (warnAt > 0) {
             clearTimeout(this.warningTimer);
-            this.warningTimer = setTimeout(() => this.renderWarningModal(), warnAt);
+            this.warningTimer = this.onWarning
+                ? setTimeout(() => this.onWarning({ extend: () => this.handleActivity(), logout: () => this._doLogout() }), warnAt)
+                : setTimeout(() => this.renderWarningModal(), warnAt);
         }
     }
 
@@ -94,8 +98,67 @@ export class IdleSession {
 
     renderWarningModal() {
         if (document.getElementById('idle-warning-modal')) return;
+
+        if (!document.getElementById('idle-warning-styles')) {
+            document.head.insertAdjacentHTML('beforeend', `<style id="idle-warning-styles">
+#idle-warning-modal {
+    padding: 2rem;
+    border-radius: 10px;
+    border: 1px solid var(--idle-border, #e5e7eb);
+    background: var(--idle-bg, #ffffff);
+    color: var(--idle-color, #111827);
+    max-width: 380px;
+    width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    font-family: system-ui, -apple-system, sans-serif;
+}
+#idle-warning-modal::backdrop {
+    background: rgba(0,0,0,0.45);
+}
+#idle-warning-modal h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--idle-heading, var(--idle-color, #111827));
+}
+#idle-warning-modal p {
+    margin: 0 0 1.5rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: var(--idle-muted, #6b7280);
+}
+#idle-warning-modal footer {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+#idle-warning-modal button {
+    padding: 0.45rem 1.1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-weight: 500;
+    transition: opacity 0.15s;
+}
+#idle-warning-modal button:hover { opacity: 0.8; }
+#stay-logged-in {
+    background: var(--idle-accent, #2563eb);
+    color: var(--idle-accent-text, #ffffff);
+    border-color: var(--idle-accent, #2563eb);
+    font-weight: 600;
+}
+#logout-now {
+    background: transparent;
+    color: var(--idle-muted, #6b7280);
+    border-color: var(--idle-border, #e5e7eb);
+}
+            </style>`);
+        }
+
         document.body.insertAdjacentHTML('beforeend', `
-            <dialog id="idle-warning-modal" style="padding:2rem; border-radius:8px; border:1px solid #ccc;">
+            <dialog id="idle-warning-modal">
                 <h2>Session Expiring</h2>
                 <p>Your session will end soon due to inactivity.</p>
                 <footer>
