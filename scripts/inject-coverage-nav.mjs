@@ -43,6 +43,7 @@ const NAV_HTML = `
 <div id="is-nav">
   <h1>IdleSession <span>Coverage</span></h1>
   <a href="https://github.com/thorst/idle-session" target="_blank" rel="noopener" class="is-gh-link">GitHub</a>
+  <a href="/idle-session/" class="is-gh-link">Kitchen Sink</a>
 </div>
 `;
 
