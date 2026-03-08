@@ -33,6 +33,7 @@ export class IdleSession {
         this.warningTimer = null;
         this.needsHeartbeat = false;
         this._lastHandled = 0;
+        this._lastActiveAt = Date.now();
 
         this.init();
     }
@@ -43,6 +44,31 @@ export class IdleSession {
         this._activityHandler = () => this.handleActivity();
         this._trackedEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'focus', 'input'];
         this._trackedEvents.forEach(evt => window.addEventListener(evt, this._activityHandler, { passive: true }));
+
+        this._visibilityHandler = () => {
+            if (document.visibilityState !== 'visible') return;
+            const elapsed = Date.now() - this._lastActiveAt;
+            if (elapsed >= this.timeout) {
+                this._doLogout();
+            } else {
+                // Re-sync timers against wall-clock time in case JS was frozen
+                clearTimeout(this.timer);
+                this.timer = setTimeout(() => this._doLogout(), this.timeout - elapsed);
+                const warnAt = this.timeout - this.warningBefore - elapsed;
+                clearTimeout(this.warningTimer);
+                if (warnAt > 0) {
+                    this.warningTimer = this.onWarning
+                        ? setTimeout(() => this.onWarning({ extend: () => this.handleActivity(), logout: () => this._doLogout() }), warnAt)
+                        : setTimeout(() => this.renderWarningModal(), warnAt);
+                } else {
+                    // Warning window has already passed — show it immediately
+                    this.onWarning
+                        ? this.onWarning({ extend: () => this.handleActivity(), logout: () => this._doLogout() })
+                        : this.renderWarningModal();
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', this._visibilityHandler);
 
         this.resetTimers();
         this._heartbeatInterval = setInterval(() => this.triggerHeartbeat(), this.heartbeatInterval);
@@ -58,6 +84,7 @@ export class IdleSession {
     }
 
     resetTimers() {
+        this._lastActiveAt = Date.now();
         clearTimeout(this.timer);
         this.timer = setTimeout(() => this._doLogout(), this.timeout);
 
@@ -92,6 +119,7 @@ export class IdleSession {
         clearTimeout(this.warningTimer);
         clearInterval(this._heartbeatInterval);
         this._trackedEvents.forEach(evt => window.removeEventListener(evt, this._activityHandler));
+        document.removeEventListener('visibilitychange', this._visibilityHandler);
         this.channel.close();
         const modal = document.getElementById('idle-warning-modal');
         if (modal) { modal.close(); modal.remove(); }

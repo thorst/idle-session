@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run coverage)",
+      "Bash(npx nyc report --reporter=text-summary)",
+      "Bash(npx nyc report --reporter=lcov)",
+      "Bash(npx nyc report --reporter=text)",
+      "Bash(node -e \":*)"
+    ]
+  }
+}

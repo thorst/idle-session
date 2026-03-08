@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
 
+.clause/
+
 # Test artifacts
 coverage/
 .nyc_output/

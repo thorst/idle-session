@@ -377,6 +377,230 @@ test('warningBefore controls when warning timer fires', async ({ page }) => {
     expect(warned).toBe(true);
 });
 
+// ── Tab Visibility (freeze recovery) ─────────────────────────────────────────
+
+test('visibilitychange on hidden tab does nothing', async ({ page }) => {
+    await page.goto('/');
+    const logoutCalled = await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        let called = false;
+        window.session.logout = () => { called = true; };
+        window.session._lastActiveAt = Date.now() - 9999999; // way past timeout
+        document.dispatchEvent(new Event('visibilitychange'));
+        return called;
+    });
+    expect(logoutCalled).toBe(false);
+});
+
+test('visibilitychange: elapsed >= timeout triggers logout', async ({ page }) => {
+    await page.goto('/');
+    const logoutCalled = await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        let called = false;
+        window.session.logout = () => { called = true; };
+        window.session._lastActiveAt = Date.now() - (window.session.timeout + 1000);
+        document.dispatchEvent(new Event('visibilitychange'));
+        return called;
+    });
+    expect(logoutCalled).toBe(true);
+});
+
+test('visibilitychange: elapsed < timeout re-syncs timers', async ({ page }) => {
+    await page.goto('/');
+    const timerReset = await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        const before = window.session.timer;
+        // 100ms elapsed, well within the default 15min timeout
+        window.session._lastActiveAt = Date.now() - 100;
+        document.dispatchEvent(new Event('visibilitychange'));
+        return window.session.timer !== before;
+    });
+    expect(timerReset).toBe(true);
+});
+
+test('visibilitychange: re-synced logout timer fires after remaining time', async ({ page }) => {
+    await page.goto('/');
+    const logoutCalled = await page.evaluate(async () => {
+        window.session.destroy();
+        let called = false;
+        // timeout=300, elapsed=200 → re-synced timer fires after 100ms
+        window.session = new window.IdleSession({
+            timeout: 300,
+            warningBefore: 10,
+            onLogout: () => { called = true; },
+        });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        window.session._lastActiveAt = Date.now() - 200;
+        document.dispatchEvent(new Event('visibilitychange'));
+        await new Promise(r => setTimeout(r, 200));
+        return called;
+    });
+    expect(logoutCalled).toBe(true);
+});
+
+test('visibilitychange: warnAt > 0, onWarning set — schedules warning timer', async ({ page }) => {
+    await page.goto('/');
+    const warned = await page.evaluate(async () => {
+        window.session.destroy();
+        let fired = false;
+        // timeout=500, warningBefore=200 → warnAt from reset=300ms
+        // simulate 150ms elapsed → remaining warnAt = 300-150 = 150ms > 0
+        window.session = new window.IdleSession({
+            timeout: 500,
+            warningBefore: 200,
+            onWarning: () => { fired = true; },
+            onLogout: () => {},
+        });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        window.session._lastActiveAt = Date.now() - 150;
+        document.dispatchEvent(new Event('visibilitychange'));
+        await new Promise(r => setTimeout(r, 250));
+        return fired;
+    });
+    expect(warned).toBe(true);
+});
+
+test('visibilitychange: warnAt > 0, onWarning extend() resets timers', async ({ page }) => {
+    await page.goto('/');
+    const timerReset = await page.evaluate(async () => {
+        window.session.destroy();
+        let extendFn = null;
+        window.session = new window.IdleSession({
+            timeout: 500,
+            warningBefore: 200,
+            onWarning: ({ extend }) => { extendFn = extend; },
+            onLogout: () => {},
+        });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        window.session._lastActiveAt = Date.now() - 150;
+        document.dispatchEvent(new Event('visibilitychange'));
+        await new Promise(r => setTimeout(r, 250));
+        if (!extendFn) return false;
+        let resetCalled = false;
+        const orig = window.session.resetTimers.bind(window.session);
+        window.session.resetTimers = () => { resetCalled = true; orig(); };
+        extendFn();
+        return resetCalled;
+    });
+    expect(timerReset).toBe(true);
+});
+
+test('visibilitychange: warnAt > 0, onWarning logout() triggers onLogout', async ({ page }) => {
+    await page.goto('/');
+    const logoutCalled = await page.evaluate(async () => {
+        window.session.destroy();
+        let logoutFn = null;
+        let called = false;
+        window.session = new window.IdleSession({
+            timeout: 500,
+            warningBefore: 200,
+            onWarning: ({ logout }) => { logoutFn = logout; },
+            onLogout: () => { called = true; },
+        });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        window.session._lastActiveAt = Date.now() - 150;
+        document.dispatchEvent(new Event('visibilitychange'));
+        await new Promise(r => setTimeout(r, 250));
+        if (!logoutFn) return false;
+        logoutFn();
+        return called;
+    });
+    expect(logoutCalled).toBe(true);
+});
+
+test('visibilitychange: warnAt > 0, no onWarning — schedules renderWarningModal', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        window.session.destroy();
+        window.session = new window.IdleSession({ timeout: 500, warningBefore: 200, onLogout: () => {} });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        window.session._lastActiveAt = Date.now() - 150;
+        document.dispatchEvent(new Event('visibilitychange'));
+        await new Promise(r => setTimeout(r, 250));
+    });
+    const modalExists = await page.evaluate(() => !!document.getElementById('idle-warning-modal'));
+    expect(modalExists).toBe(true);
+});
+
+test('visibilitychange: warnAt <= 0, onWarning set — fires onWarning immediately', async ({ page }) => {
+    await page.goto('/');
+    const warned = await page.evaluate(() => {
+        window.session.destroy();
+        let fired = false;
+        // timeout=500, warningBefore=200, elapsed=400 → warnAt = 500-200-400 = -100 ≤ 0
+        window.session = new window.IdleSession({
+            timeout: 500,
+            warningBefore: 200,
+            onWarning: () => { fired = true; },
+            onLogout: () => {},
+        });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        window.session._lastActiveAt = Date.now() - 400;
+        document.dispatchEvent(new Event('visibilitychange'));
+        return fired;
+    });
+    expect(warned).toBe(true);
+});
+
+test('visibilitychange: warnAt <= 0, onWarning extend() resets timers', async ({ page }) => {
+    await page.goto('/');
+    const timerReset = await page.evaluate(() => {
+        window.session.destroy();
+        let extendFn = null;
+        window.session = new window.IdleSession({
+            timeout: 500,
+            warningBefore: 200,
+            onWarning: ({ extend }) => { extendFn = extend; },
+            onLogout: () => {},
+        });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        window.session._lastActiveAt = Date.now() - 400;
+        document.dispatchEvent(new Event('visibilitychange'));
+        if (!extendFn) return false;
+        let resetCalled = false;
+        const orig = window.session.resetTimers.bind(window.session);
+        window.session.resetTimers = () => { resetCalled = true; orig(); };
+        extendFn();
+        return resetCalled;
+    });
+    expect(timerReset).toBe(true);
+});
+
+test('visibilitychange: warnAt <= 0, onWarning logout() triggers onLogout', async ({ page }) => {
+    await page.goto('/');
+    const logoutCalled = await page.evaluate(() => {
+        window.session.destroy();
+        let logoutFn = null;
+        let called = false;
+        window.session = new window.IdleSession({
+            timeout: 500,
+            warningBefore: 200,
+            onWarning: ({ logout }) => { logoutFn = logout; },
+            onLogout: () => { called = true; },
+        });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        window.session._lastActiveAt = Date.now() - 400;
+        document.dispatchEvent(new Event('visibilitychange'));
+        if (!logoutFn) return false;
+        logoutFn();
+        return called;
+    });
+    expect(logoutCalled).toBe(true);
+});
+
+test('visibilitychange: warnAt <= 0, no onWarning — shows modal immediately', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => {
+        window.session.destroy();
+        window.session = new window.IdleSession({ timeout: 500, warningBefore: 200, onLogout: () => {} });
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        window.session._lastActiveAt = Date.now() - 400;
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    const modalExists = await page.evaluate(() => !!document.getElementById('idle-warning-modal'));
+    expect(modalExists).toBe(true);
+});
+
 // ── Cross-Tab Sync ────────────────────────────────────────────────────────────
 
 test('onmessage USER_ACTIVE resets timers', async ({ page }) => {
