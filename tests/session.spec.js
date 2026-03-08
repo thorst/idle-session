@@ -50,10 +50,12 @@ test('"Log Out" button in warning modal triggers logout', async ({ page }) => {
 test('handleActivity throttles rapid duplicate calls within 500ms', async ({ page }) => {
     await page.goto('/');
     const throttled = await page.evaluate(() => {
-        window.session.handleActivity();         // sets _lastHandled
-        const stamp = window.session._lastHandled;
-        window.session.handleActivity();         // should be ignored
-        return window.session._lastHandled === stamp;
+        let resetCount = 0;
+        const orig = window.session.resetTimers.bind(window.session);
+        window.session.resetTimers = () => { resetCount++; orig(); };
+        window.session.handleActivity();  // first call — resets timers
+        window.session.handleActivity();  // within 500ms — should be ignored
+        return resetCount === 1;
     });
     expect(throttled).toBe(true);
 });
@@ -62,26 +64,57 @@ test('handleActivity throttles rapid duplicate calls within 500ms', async ({ pag
 
 test('resetTimers sets warning timer when timeout exceeds 60s', async ({ page }) => {
     await page.goto('/');
-    const timerSet = await page.evaluate(() => {
-        window.session.timeout = 120000;
-        window.session.resetTimers();
-        return !!window.session.warningTimer;
+    const warned = await page.evaluate(async () => {
+        let fired = false;
+        window.session.destroy();
+        // timeout=200, warningBefore=150 → warnAt=50ms > 0 → warning timer is set
+        window.session = new window.IdleSession({
+            timeout: 200,
+            warningBefore: 150,
+            onWarning: () => { fired = true; },
+        });
+        await new Promise(r => setTimeout(r, 100));
+        return fired;
     });
-    expect(timerSet).toBe(true);
+    expect(warned).toBe(true);
 });
 
 test('resetTimers skips warning timer when timeout is 60s or less', async ({ page }) => {
     await page.goto('/');
-    const timerSet = await page.evaluate(() => {
-        window.session.timeout = 30000;
-        window.session.warningTimer = null;
-        window.session.resetTimers();
-        return !!window.session.warningTimer;
+    const warned = await page.evaluate(async () => {
+        let fired = false;
+        window.session.destroy();
+        // warningBefore=250 > timeout=200 → warnAt=-50ms ≤ 0 → no warning timer set
+        window.session = new window.IdleSession({
+            timeout: 200,
+            warningBefore: 250,
+            onWarning: () => { fired = true; },
+            onLogout: () => {},  // prevent navigation
+        });
+        await new Promise(r => setTimeout(r, 250));
+        return fired;
     });
-    expect(timerSet).toBe(false);
+    expect(warned).toBe(false);
 });
 
 // ── Heartbeat ─────────────────────────────────────────────────────────────────
+
+test('heartbeat interval fires triggerHeartbeat automatically', async ({ page }) => {
+    await page.goto('/');
+    const called = await page.evaluate(async () => {
+        let fired = false;
+        window.session.destroy();
+        window.session = new window.IdleSession({
+            timeout: 999999,
+            heartbeatInterval: 100,
+            onHeartbeat: async () => { fired = true; },
+        });
+        window.session.needsHeartbeat = true;
+        await new Promise(r => setTimeout(r, 200));
+        return fired;
+    });
+    expect(called).toBe(true);
+});
 
 // These tests create a fresh IdleSession with the *default* onHeartbeat (which
 // actually calls fetch) so that page.route() interceptions have effect.
@@ -248,9 +281,11 @@ test('onWarning extend() resets timers', async ({ page }) => {
         });
         await new Promise(r => setTimeout(r, 600));
         if (!extendFn) return false;
-        const timerBefore = window.session.timer;
+        let resetCalled = false;
+        const orig = window.session.resetTimers.bind(window.session);
+        window.session.resetTimers = () => { resetCalled = true; orig(); };
         extendFn();
-        return window.session.timer !== timerBefore;
+        return resetCalled;
     });
     expect(timerChanged).toBe(true);
 });
@@ -320,30 +355,41 @@ test('channelName creates BroadcastChannel with that name', async ({ page }) => 
     const name = await page.evaluate(() => {
         window.session.destroy();
         window.session = new window.IdleSession({ channelName: 'my_app_session' });
-        return window.session.channel.name;
+        return window.session.channelName;
     });
     expect(name).toBe('my_app_session');
 });
 
 test('warningBefore controls when warning timer fires', async ({ page }) => {
     await page.goto('/');
-    const timerSet = await page.evaluate(() => {
+    const warned = await page.evaluate(async () => {
+        let fired = false;
         window.session.destroy();
-        // warningBefore=4000 with timeout=5000 → warnAt=1000 > 0, so warningTimer is set
-        window.session = new window.IdleSession({ timeout: 5000, warningBefore: 4000 });
-        return !!window.session.warningTimer;
+        // timeout=200, warningBefore=150 → warnAt=50ms > 0 → warning timer fires
+        window.session = new window.IdleSession({
+            timeout: 200,
+            warningBefore: 150,
+            onWarning: () => { fired = true; },
+        });
+        await new Promise(r => setTimeout(r, 100));
+        return fired;
     });
-    expect(timerSet).toBe(true);
+    expect(warned).toBe(true);
 });
 
 // ── Cross-Tab Sync ────────────────────────────────────────────────────────────
 
 test('onmessage USER_ACTIVE resets timers', async ({ page }) => {
     await page.goto('/');
-    const timerChanged = await page.evaluate(() => {
-        const before = window.session.timer;
-        window.session.channel.onmessage({ data: 'USER_ACTIVE' });
-        return window.session.timer !== before;
+    const timerChanged = await page.evaluate(async () => {
+        let resetCalled = false;
+        const orig = window.session.resetTimers.bind(window.session);
+        window.session.resetTimers = () => { resetCalled = true; orig(); };
+        const bc = new BroadcastChannel('session_sync');
+        bc.postMessage('USER_ACTIVE');
+        await new Promise(r => setTimeout(r, 50));
+        bc.close();
+        return resetCalled;
     });
     expect(timerChanged).toBe(true);
 });

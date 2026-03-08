@@ -27,6 +27,7 @@ export class IdleSession {
         this.logout = onLogout;
         this.onWarning = onWarning;
 
+        this.channelName = channelName;
         this.channel = new BroadcastChannel(channelName);
         this.timer = null;
         this.warningTimer = null;

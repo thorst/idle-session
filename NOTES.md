@@ -99,6 +99,3 @@ gh release create v[#####] --generate-notes  # update version number to match
 Submit to cdnjs after a few npm versions are published to establish a track record.
 - Submission: https://github.com/cdnjs/packages
 
-### TypeScript: Stricter Public API Surface
-
-The `.d.ts` currently exposes internal properties (`timer`, `warningTimer`, `channel`, etc.) because tests access them directly. A future version could use `private` declarations or a separate internal interface to keep the public-facing types clean.

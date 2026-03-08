@@ -27,18 +27,37 @@ export interface IdleSessionOptions {
 }
 
 export declare class IdleSession {
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    /** Idle timeout in ms. Can be updated at runtime. */
     timeout: number;
+    /** Heartbeat ping interval in ms. */
     heartbeatInterval: number;
+    /** How many ms before `timeout` the warning fires. */
     warningBefore: number;
+    /** True when user activity has occurred since the last heartbeat. Can be set to force/suppress the next ping. */
     needsHeartbeat: boolean;
-    onWarning: ((args: WarningCallbackArgs) => void) | undefined;
-    channel: BroadcastChannel;
-    timer: ReturnType<typeof setTimeout> | null;
-    warningTimer: ReturnType<typeof setTimeout> | null;
-    logout: () => void;
+    /** The BroadcastChannel name used for cross-tab sync. */
+    readonly channelName: string;
+    /** Called on each heartbeat interval when the user has been active. */
     onHeartbeat: () => Promise<void>;
+    /** Called when the session expires. Reassign to override the default `/logout` redirect. */
+    logout: () => void;
+    /** Called instead of the built-in modal when the session is about to expire. */
+    onWarning: ((args: WarningCallbackArgs) => void) | undefined;
+
+    // ── Private internals ─────────────────────────────────────────────────────
+    private channel: BroadcastChannel;
+    private timer: ReturnType<typeof setTimeout> | null;
+    private warningTimer: ReturnType<typeof setTimeout> | null;
+    private _lastHandled: number;
+    private _heartbeatInterval: ReturnType<typeof setInterval>;
+    private _activityHandler: () => void;
+    private _trackedEvents: string[];
 
     constructor(options?: IdleSessionOptions);
+
+    // ── Public methods ────────────────────────────────────────────────────────
 
     /** Register activity, throttled to once per 500ms. Resets all timers and broadcasts across tabs. */
     handleActivity(): void;
@@ -55,4 +74,8 @@ export declare class IdleSession {
      * `--idle-accent`, `--idle-accent-text`
      */
     renderWarningModal(): void;
+
+    // ── Private methods ───────────────────────────────────────────────────────
+    private init(): void;
+    private _doLogout(): void;
 }
